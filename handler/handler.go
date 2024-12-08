@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"image-server/handler/middlewares/cors"
 	"image-server/service"
 	"io"
 	"net/http"
@@ -25,7 +26,8 @@ func NewImageHandler(imageService *service.ImageService, maxFileSize int64) *Ima
 }
 
 func (h *ImageHandler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/images/", h.handleImageRequests)
+	handler := http.HandlerFunc(h.handleImageRequests)
+	mux.Handle("/images/", cors.CorsMiddleware(handler))
 }
 
 func (h *ImageHandler) handleImageRequests(w http.ResponseWriter, r *http.Request) {

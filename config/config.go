@@ -9,7 +9,8 @@ import (
 type Config struct {
 	Server struct {
 		Port        string `env:"SERVER_PORT" envDefault:"8080"`
-		MaxFileSize int64  `env:"MAX_FILE_SIZE" envDefault:"5242880"` // 5MB default
+		MaxFileSize int64  `env:"MAX_FILE_SIZE" envDefault:"5242880"`
+		CorsOrigins string `env:"CORS_ORIGINS" envDefault:"*"`
 	}
 	Storage struct {
 		BasePath string `env:"STORAGE_PATH" envDefault:"./data"`
