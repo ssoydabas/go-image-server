@@ -13,6 +13,10 @@ git reset --hard origin/main || { echo "Failed to reset to origin/main"; exit 1;
 # Ensure the deploy script has executable permissions for the next time regardless of any changes made to it
 chmod +x ~/apps/cannabox/image-server/scripts/deploy.sh || { echo "Failed to set permissions on deploy.sh"; exit 1; }
 
-docker compose down --volumes || { echo "Failed to stop and remove volumes"; exit 1; }
+# Create data directory if it doesn't exist and set permissions
+mkdir -p ~/apps/cannabox/image-server/data || { echo "Failed to create data directory"; exit 1; }
+chmod 777 ~/apps/cannabox/image-server/data || { echo "Failed to set permissions on data directory"; exit 1; }
+
+docker compose down || { echo "Failed to stop containers"; exit 1; }
 
 docker compose up -d --build || { echo "Docker Compose failed"; exit 1; }
