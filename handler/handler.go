@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"image-server/handler/middlewares/cors"
@@ -82,29 +83,34 @@ func (h *ImageHandler) getImage(w http.ResponseWriter, r *http.Request, entityTy
 func (h *ImageHandler) uploadImage(w http.ResponseWriter, r *http.Request, entityType string) {
 	uuid := uuid.New().String()
 
+	// Parse with the actual max file size limit
 	if err := r.ParseMultipartForm(h.maxFileSize); err != nil {
-		if err == http.ErrHandlerTimeout {
-			http.Error(w, fmt.Sprintf("file size exceeds maximum limit of %d MB", h.maxFileSize/1024/1024), http.StatusRequestEntityTooLarge)
-			return
-		}
-		http.Error(w, "failed to parse form", http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("file size exceeds maximum limit of %d MB", h.maxFileSize/1024/1024), http.StatusRequestEntityTooLarge)
 		return
 	}
 
-	file, header, err := r.FormFile("image")
+	file, _, err := r.FormFile("image")
 	if err != nil {
 		http.Error(w, "failed to get image file", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-	// Check file size before processing
-	if header.Size > h.maxFileSize {
-		http.Error(w, fmt.Sprintf("file size %d MB exceeds maximum limit of %d MB", header.Size/1024/1024, h.maxFileSize/1024/1024), http.StatusRequestEntityTooLarge)
+	// Read file to check size
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "failed to read file", http.StatusInternalServerError)
 		return
 	}
 
-	metadata, err := h.imageService.SaveImage(entityType, uuid, file)
+	// Check if single file exceeds limit
+	if int64(len(fileBytes)) > h.maxFileSize {
+		http.Error(w, fmt.Sprintf("file size %d MB exceeds maximum limit of %d MB", len(fileBytes)/1024/1024, h.maxFileSize/1024/1024), http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	fileReader := bytes.NewReader(fileBytes)
+	metadata, err := h.imageService.SaveImage(entityType, uuid, fileReader)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to save image: %v", err), http.StatusInternalServerError)
 		return
@@ -125,27 +131,13 @@ func (h *ImageHandler) uploadImage(w http.ResponseWriter, r *http.Request, entit
 
 func (h *ImageHandler) uploadMultipleImages(w http.ResponseWriter, r *http.Request, entityType string) {
 	if err := r.ParseMultipartForm(h.maxFileSize); err != nil {
-		if err == http.ErrHandlerTimeout {
-			http.Error(w, fmt.Sprintf("total upload size exceeds maximum limit of %d MB", h.maxFileSize/1024/1024), http.StatusRequestEntityTooLarge)
-			return
-		}
-		http.Error(w, "failed to parse form", http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("upload size exceeds maximum limit of %d MB", h.maxFileSize/1024/1024), http.StatusRequestEntityTooLarge)
 		return
 	}
 
 	files := r.MultipartForm.File["images"]
 	if len(files) == 0 {
 		http.Error(w, "no images provided", http.StatusBadRequest)
-		return
-	}
-
-	// Check total size of all files
-	var totalSize int64
-	for _, fileHeader := range files {
-		totalSize += fileHeader.Size
-	}
-	if totalSize > h.maxFileSize {
-		http.Error(w, fmt.Sprintf("total file size %d MB exceeds maximum limit of %d MB", totalSize/1024/1024, h.maxFileSize/1024/1024), http.StatusRequestEntityTooLarge)
 		return
 	}
 
@@ -159,9 +151,24 @@ func (h *ImageHandler) uploadMultipleImages(w http.ResponseWriter, r *http.Reque
 		}
 		defer file.Close()
 
-		uuid := uuid.New().String()
+		// Read and check each file's size individually
+		fileBytes, err := io.ReadAll(file)
+		if err != nil {
+			http.Error(w, "failed to read file", http.StatusInternalServerError)
+			return
+		}
 
-		metadata, err := h.imageService.SaveImage(entityType, uuid, file)
+		// Check if individual file exceeds limit
+		if int64(len(fileBytes)) > h.maxFileSize {
+			http.Error(w, fmt.Sprintf("file %s size %d MB exceeds maximum limit of %d MB",
+				fileHeader.Filename, len(fileBytes)/1024/1024, h.maxFileSize/1024/1024),
+				http.StatusRequestEntityTooLarge)
+			return
+		}
+
+		uuid := uuid.New().String()
+		fileReader := bytes.NewReader(fileBytes)
+		metadata, err := h.imageService.SaveImage(entityType, uuid, fileReader)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to save image %s: %v", fileHeader.Filename, err), http.StatusInternalServerError)
 			return
