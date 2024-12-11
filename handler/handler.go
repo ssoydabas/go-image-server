@@ -83,16 +83,26 @@ func (h *ImageHandler) uploadImage(w http.ResponseWriter, r *http.Request, entit
 	uuid := uuid.New().String()
 
 	if err := r.ParseMultipartForm(h.maxFileSize); err != nil {
+		if err == http.ErrHandlerTimeout {
+			http.Error(w, fmt.Sprintf("file size exceeds maximum limit of %d MB", h.maxFileSize/1024/1024), http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "failed to parse form", http.StatusBadRequest)
 		return
 	}
 
-	file, _, err := r.FormFile("image")
+	file, header, err := r.FormFile("image")
 	if err != nil {
 		http.Error(w, "failed to get image file", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
+
+	// Check file size before processing
+	if header.Size > h.maxFileSize {
+		http.Error(w, fmt.Sprintf("file size %d MB exceeds maximum limit of %d MB", header.Size/1024/1024, h.maxFileSize/1024/1024), http.StatusRequestEntityTooLarge)
+		return
+	}
 
 	metadata, err := h.imageService.SaveImage(entityType, uuid, file)
 	if err != nil {
@@ -115,6 +125,10 @@ func (h *ImageHandler) uploadImage(w http.ResponseWriter, r *http.Request, entit
 
 func (h *ImageHandler) uploadMultipleImages(w http.ResponseWriter, r *http.Request, entityType string) {
 	if err := r.ParseMultipartForm(h.maxFileSize); err != nil {
+		if err == http.ErrHandlerTimeout {
+			http.Error(w, fmt.Sprintf("total upload size exceeds maximum limit of %d MB", h.maxFileSize/1024/1024), http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "failed to parse form", http.StatusBadRequest)
 		return
 	}
@@ -122,6 +136,16 @@ func (h *ImageHandler) uploadMultipleImages(w http.ResponseWriter, r *http.Reque
 	files := r.MultipartForm.File["images"]
 	if len(files) == 0 {
 		http.Error(w, "no images provided", http.StatusBadRequest)
+		return
+	}
+
+	// Check total size of all files
+	var totalSize int64
+	for _, fileHeader := range files {
+		totalSize += fileHeader.Size
+	}
+	if totalSize > h.maxFileSize {
+		http.Error(w, fmt.Sprintf("total file size %d MB exceeds maximum limit of %d MB", totalSize/1024/1024, h.maxFileSize/1024/1024), http.StatusRequestEntityTooLarge)
 		return
 	}
 
