@@ -10,7 +10,7 @@ import (
 type Config struct {
 	Server struct {
 		Port            string        `env:"SERVER_PORT" envDefault:"8080"`
-		MaxFileSize     int64         `env:"MAX_FILE_SIZE" envDefault:"5242880"`
+		MaxFileSize     int64         `env:"MAX_FILE_SIZE" envDefault:"10485760"`
 		ShutdownTimeout time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"10s"`
 	}
 	Storage struct {
