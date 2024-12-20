@@ -19,7 +19,12 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	fileStorage, err := storage.NewFileStorage(cfg.Storage.BasePath)
+	basePath := cfg.Storage.BasePath
+	if cfg.Environment == "development" {
+		basePath = cfg.Storage.DevPath
+	}
+
+	fileStorage, err := storage.NewFileStorage(basePath)
 	if err != nil {
 		log.Fatalf("Failed to initialize storage: %v", err)
 	}

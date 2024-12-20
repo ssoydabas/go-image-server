@@ -33,10 +33,11 @@ WORKDIR /app
 COPY --from=builder /app/main .
 
 # Create data directory and set permissions
-RUN mkdir -p /app/data && \
+RUN mkdir -p /app/data /app/dev-data && \
     chown -R appuser:appgroup /app && \
     chmod 755 /app/main && \
-    chmod 755 /app/data
+    chmod 755 /app/data && \
+    chmod 755 /app/dev-data
 
 # Switch to app user
 USER appuser
